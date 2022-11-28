@@ -293,7 +293,7 @@ void print_cluster(struct cluster_t *c)
 
 void free_clusters(struct cluster_t** arr, int len);
 int return_error(char* msg, int return_value);
-
+bool convert_int(char* str, int* result);
 /*
  Ze souboru 'filename' nacte objekty. Pro kazdy objekt vytvori shluk a ulozi
  jej do pole shluku. Alokuje prostor pro pole vsech shluku a ukazatel na prvni
@@ -315,15 +315,34 @@ int load_clusters(char *filename, struct cluster_t **arr)
     }
     char count_txt[31];
 
-    fgets(count_txt, 30, file);
+    fscanf(file, "%30s", count_txt);
+
     //Checking here if a file in a proper format(must contain count= in the beginning)
     if(strcmp(strtok(count_txt, "="), "count") != 0){
         fclose(file);
         return return_error("Argument error\nArgument file isn\'t in a proper format", 0);
     }
-    int count = atoi(strtok(NULL, "="));
+    /*int ch;
+    for(int i = 0; (ch = getchar(file)) != '\n' && ch != '\r' && ch != EOF; i++){
+        if(i < strlen(count_txt)){
+            if(ch != count_txt[i]){
+                fclose(file);
+                return return_error("Argument error\nArgument file isn\'t in a proper format", 0);
+            }
+        }
+        else{
+
+        }   
+    }*/
+
+
+
+
+
+    strcpy(count_txt, strtok(NULL, "="));
+    int count;
     //Checking here if count argument in file is an integer higher than 0
-    if(count <= 0){
+    if(!convert_int(count_txt, &count)){
         fclose(file);
         return return_error("Argument file error\nThe value of [count] must be integer higher than 0", 0);
     }
@@ -407,6 +426,19 @@ int return_error(char* msg, int return_value){
     return return_value;
 }
 
+//Function converts string to int and in the same time checks if it's int
+bool convert_int(char* str, int* result){
+    for(int i = 0; str[i] != '\0'; i++){
+        if(str[i] < '0' || str[i] > '9'){
+
+            printf("\n\t%d\n", str[i]);
+            return false;
+        }
+    }
+    *result = atoi(str);
+    return true;
+}
+
 int main(int argc, char *argv[])
 {
     struct cluster_t *clusters;
@@ -419,9 +451,13 @@ int main(int argc, char *argv[])
     int count = 1;
 
     if(argc == 3){
-        int remainder = 0;
-        if(sscanf(argv[2], "%d.%d", &count, &remainder) <= 0 && remainder == 0){
-            printf("%d", remainder);
+//         int remainder = 0;
+//         if(sscanf(argv[2], "%d.%d", &count, &remainder) <= 0 && remainder == 0){
+//             printf("%d", remainder);
+//             return return_error("Argument error\nArgument [final_cluster_count] isn\'t in a proper format.
+// It must be an integer higher than 0", EXIT_FAILURE);
+//         }
+    	if(!convert_int(argv[2], &count)){
             return return_error("Argument error\nArgument [final_cluster_count] isn\'t in a proper format. \
 It must be an integer higher than 0", EXIT_FAILURE);
         }
