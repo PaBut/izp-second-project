@@ -313,19 +313,19 @@ int load_clusters(char *filename, struct cluster_t **arr)
         fprintf(stderr, "Argument error\n%s doesn\'t exist\n", filename);
         return 0;
     }
-    char count_txt[31];
+    char buffer[31];
 
-    fscanf(file, "%30s", count_txt);
+    fscanf(file, "%30s", buffer);
 
     //Checking here if a file in a proper format(must contain count= in the beginning)
-    if(strcmp(strtok(count_txt, "="), "count") != 0){
+    if(strcmp(strtok(buffer, "="), "count") != 0){
         fclose(file);
         return return_error("Argument error\nArgument file isn\'t in a proper format", 0);
     }
     /*int ch;
     for(int i = 0; (ch = getchar(file)) != '\n' && ch != '\r' && ch != EOF; i++){
-        if(i < strlen(count_txt)){
-            if(ch != count_txt[i]){
+        if(i < strlen(buffer)){
+            if(ch != buffer[i]){
                 fclose(file);
                 return return_error("Argument error\nArgument file isn\'t in a proper format", 0);
             }
@@ -339,10 +339,10 @@ int load_clusters(char *filename, struct cluster_t **arr)
 
 
 
-    strcpy(count_txt, strtok(NULL, "="));
+    strcpy(buffer, strtok(NULL, "="));
     int count;
     //Checking here if count argument in file is an integer higher than 0
-    if(!convert_int(count_txt, &count)){
+    if(!convert_int(buffer, &count)){
         fclose(file);
         return return_error("Argument file error\nThe value of [count] must be integer higher than 0", 0);
     }
@@ -355,20 +355,37 @@ int load_clusters(char *filename, struct cluster_t **arr)
     int i = 0;
     //Setting file values to clusters
     for(; i < count; i++){
-        struct obj_t obj;
-        int scan_res = fscanf(file, "%d %f %f", &obj.id, &obj.x, &obj.y);
-        if(scan_res == EOF){
-            fclose(file);
-            fprintf(stderr, "Argument file error\nCount of objects given \
-in the beginning of the file is higher than initial count of objects in the file");
-            return i;
+
+        int property_array[3];
+        for(int j = 0; j < 3; j++){
+            if(fscanf(file, "%30s", buffer) == EOF){
+                fclose(file);
+                return return_error("Argument file error\nCount of objects given \
+in the beginning of the file is higher than initial count of objects in the file", i);
+            }
+            if(!convert_int(buffer, &property_array[j])){
+                fclose(file);
+                free_clusters(arr, i);
+                fprintf(stderr, "Argument file error\nProperies of objects isn\'t proper, they must be int type");
+                return 0;
+            }
+
         }
-        if(scan_res != 3){
+
+
+
+        struct obj_t obj;
+        obj.id = property_array[0];
+        obj.x = floor(property_array[1]);
+        obj.y = floor(property_array[2]);
+        int last_symbol = getc(file);
+        if(!(last_symbol == '\n' || last_symbol == '\r' || last_symbol == EOF)){
             fclose(file);
             free_clusters(arr, i);
-            fprintf(stderr, "Argument file error\nProperies of objects isn\'t proper, they must be int type");
+            fprintf(stderr, "Argument file error\nProperies of more than one object can\'t be on a line");
             return 0;
         }
+
         if(obj.x < 0 || obj.x >1000 || obj.y < 0 || obj.y > 1000){
             fclose(file);
             free_clusters(arr, i);
