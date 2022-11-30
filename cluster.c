@@ -43,6 +43,8 @@
 
 #endif
 
+#define INT_MAX_DIGITS_COUNT 10
+
 /*****************************************************************
  * Deklarace potrebnych datovych typu:
  *
@@ -77,21 +79,23 @@ struct cluster_t {
  *
  */
 
+int return_error(char* msg, int return_value);
+
 /*
  Inicializace shluku 'c'. Alokuje pamet pro cap objektu (kapacitu).
  Ukazatel NULL u pole objektu znamena kapacitu 0.
 */
-void init_cluster(struct cluster_t *c, int cap)
+int init_cluster(struct cluster_t *c, int cap)
 {
     assert(c != NULL);
     assert(cap >= 0);
 
-    // TODO
     if((c->obj = malloc(cap * sizeof(struct obj_t))) == NULL){
-        return;
+        return return_error("Allocation error", -1);
     }
     c->capacity = cap;
     c->size = 0;
+    return 1;
 }
 
 /*
@@ -99,7 +103,6 @@ void init_cluster(struct cluster_t *c, int cap)
  */
 void clear_cluster(struct cluster_t *c)
 {
-    // TODO
     free(c->obj);
     c->size = 0;
     c->capacity = 0;
@@ -136,15 +139,16 @@ struct cluster_t *resize_cluster(struct cluster_t *c, int new_cap)
  Prida objekt 'obj' na konec shluku 'c'. Rozsiri shluk, pokud se do nej objekt
  nevejde.
  */
-void append_cluster(struct cluster_t *c, struct obj_t obj)
+int append_cluster(struct cluster_t *c, struct obj_t obj)
 {
     // TODO
     if(c->size + 1 > c->capacity){
         if(resize_cluster(c, c->size+1) == NULL){
-            return;
+            return return_error("Allocation error", -1);
         }
     }
     c->obj[c->size++] = obj;
+    return 1;
 }
 
 /*
@@ -157,7 +161,7 @@ void sort_cluster(struct cluster_t *c);
  Objekty ve shluku 'c1' budou serazeny vzestupne podle identifikacniho cisla.
  Shluk 'c2' bude nezmenen.
  */
-void merge_clusters(struct cluster_t *c1, struct cluster_t *c2)
+int merge_clusters(struct cluster_t *c1, struct cluster_t *c2)
 {
     assert(c1 != NULL);
     assert(c2 != NULL);
@@ -166,7 +170,7 @@ void merge_clusters(struct cluster_t *c1, struct cluster_t *c2)
     //Checking here if merging can fit in allocated memory for objects in c1
     if(c1->size + c2->size > c1->capacity){
         if(resize_cluster(c1, c1->size + c2->size) == NULL){
-            return;
+            return return_error("Allocation error", -1);
         }
     }
     for(int i = 0; i < c2->size; i++){
@@ -174,6 +178,7 @@ void merge_clusters(struct cluster_t *c1, struct cluster_t *c2)
     }
     c1->size+=c2->size;
     sort_cluster(c1);
+    return 1;
 }
 
 /**********************************************************************/
@@ -292,8 +297,7 @@ void print_cluster(struct cluster_t *c)
 }
 
 void free_clusters(struct cluster_t** arr, int len);
-int return_error(char* msg, int return_value);
-bool convert_int(char* str, int* result);
+bool convert_int(char* str, int* result, bool must_be_higher_zero);
 /*
  Ze souboru 'filename' nacte objekty. Pro kazdy objekt vytvori shluk a ulozi
  jej do pole shluku. Alokuje prostor pro pole vsech shluku a ukazatel na prvni
@@ -303,8 +307,10 @@ bool convert_int(char* str, int* result);
 */
 int load_clusters(char *filename, struct cluster_t **arr)
 {
+    //maximal count of digits in int plus one digit just to check if it's int plus '\0'
+    const int STR_COUNT_ARG_LEN = 6 + 1 + INT_MAX_DIGITS_COUNT + 1 + 1; 
 
-    //assert(arr != NULL);
+    assert(arr != NULL);
 
     // TODO
     FILE* file;
@@ -313,36 +319,26 @@ int load_clusters(char *filename, struct cluster_t **arr)
         fprintf(stderr, "Argument error\n%s doesn\'t exist\n", filename);
         return 0;
     }
-    char buffer[31];
+    char buffer[STR_COUNT_ARG_LEN];
+    if(buffer == NULL){
+        fclose(file);
+        return return_error("Allocation error", 0);
+    }
 
-    fscanf(file, "%30s", buffer);
+    fscanf(file, "%18s", buffer);
+
 
     //Checking here if a file in a proper format(must contain count= in the beginning)
     if(strcmp(strtok(buffer, "="), "count") != 0){
         fclose(file);
         return return_error("Argument error\nArgument file isn\'t in a proper format", 0);
     }
-    /*int ch;
-    for(int i = 0; (ch = getchar(file)) != '\n' && ch != '\r' && ch != EOF; i++){
-        if(i < strlen(buffer)){
-            if(ch != buffer[i]){
-                fclose(file);
-                return return_error("Argument error\nArgument file isn\'t in a proper format", 0);
-            }
-        }
-        else{
-
-        }   
-    }*/
-
-
-
 
 
     strcpy(buffer, strtok(NULL, "="));
     int count;
     //Checking here if count argument in file is an integer higher than 0
-    if(!convert_int(buffer, &count)){
+    if(!convert_int(buffer, &count, true)){
         fclose(file);
         return return_error("Argument file error\nThe value of [count] must be integer higher than 0", 0);
     }
@@ -352,38 +348,34 @@ int load_clusters(char *filename, struct cluster_t **arr)
         fclose(file);
         return return_error("Allocation error", 0);
     }
+
     int i = 0;
     //Setting file values to clusters
     for(; i < count; i++){
-
         int property_array[3];
+        //Parsing values in the line and checking if they are int
         for(int j = 0; j < 3; j++){
-            if(fscanf(file, "%30s", buffer) == EOF){
-                fclose(file);
-                return return_error("Argument file error\nCount of objects given \
-in the beginning of the file is higher than initial count of objects in the file", i);
-            }
-            if(!convert_int(buffer, &property_array[j])){
+            if(fscanf(file, "%18s", buffer) == EOF){
                 fclose(file);
                 free_clusters(arr, i);
-                fprintf(stderr, "Argument file error\nProperies of objects isn\'t proper, they must be int type");
-                return 0;
+                return return_error("Argument file error\nCount of objects given \
+in the beginning of the file is higher than initial count of objects in the file", 0);
             }
 
+            if(!convert_int(buffer, &property_array[j], false)){
+                fclose(file);
+                free_clusters(arr, i);
+                return return_error("Argument file error\nProperies of objects isn\'t proper, they must be int type", 0);
+            }
         }
 
-
-
-        struct obj_t obj;
-        obj.id = property_array[0];
-        obj.x = floor(property_array[1]);
-        obj.y = floor(property_array[2]);
+        struct obj_t obj = {property_array[0], floor(property_array[1]), floor(property_array[2])};
+        //Checking if there properties of multiple objects in a line 
         int last_symbol = getc(file);
         if(!(last_symbol == '\n' || last_symbol == '\r' || last_symbol == EOF)){
             fclose(file);
             free_clusters(arr, i);
-            fprintf(stderr, "Argument file error\nProperies of more than one object can\'t be on a line");
-            return 0;
+            return return_error("Argument file error\nProperies of more than one object can\'t be on a line", 0);
         }
 
         if(obj.x < 0 || obj.x >1000 || obj.y < 0 || obj.y > 1000){
@@ -392,12 +384,17 @@ in the beginning of the file is higher than initial count of objects in the file
             return return_error("Argument file error\nThe value of coordinates \
 of some cluster must be in range between 0 and 1000 included", 0);
         }
-        init_cluster(&(*arr)[i], 1);
-        append_cluster(&(*arr)[i], obj);
+        if(init_cluster(&(*arr)[i], 1) == -1){
+            fclose(file);
+            free_clusters(arr, i); 
+            return 0;
+        }
+        if(append_cluster(&(*arr)[i], obj) == -1){
+            fclose(file);
+            free_clusters(arr, i); 
+            return 0;
+        }
         (*arr)[i].size = 1;
-        /*init_cluster(&(*arr)[i], 1);
-        fscanf(file, "%d %f %f", &(*arr)[i].obj->id, &(*arr)[i].obj->x, &(*arr)[i].obj->y);
-        (*arr)[i].size = 1;*/
     }
 
     fclose(file);
@@ -444,17 +441,37 @@ int return_error(char* msg, int return_value){
 }
 
 //Function converts string to int and in the same time checks if it's int
-bool convert_int(char* str, int* result){
-    for(int i = 0; str[i] != '\0'; i++){
+bool convert_int(char* str, int* result, bool must_be_higher_zero){
+    int i = 0;
+    unsigned max_digits_with_sign = INT_MAX_DIGITS_COUNT;
+    //Number is negative, then maximal count of symbols in int number can be on one higher
+    if(str[i] == '-'){
+        i = 1;
+        max_digits_with_sign++;
+    }
+    //Count of symbols in given string is higher than int number can store digits
+    if(strlen(str) > max_digits_with_sign){
+        return false;
+    }
+    //Checking if there're only digits in given string 
+    for(; str[i] != '\0'; i++){
         if(str[i] < '0' || str[i] > '9'){
-
-            printf("\n\t%d\n", str[i]);
             return false;
         }
     }
-    *result = atoi(str);
+    //Checking if number in int range
+    long int temp = atol(str);
+    if(temp > INT_MAX || temp < INT_MIN){
+        return false;
+    }
+    if(must_be_higher_zero && temp <= 0){
+        return false;
+    }
+
+    *result = (int)temp;
     return true;
 }
+
 
 int main(int argc, char *argv[])
 {
@@ -465,16 +482,10 @@ int main(int argc, char *argv[])
         return return_error("Argument error\nWrong amount of arguments", EXIT_FAILURE);
     }
 
-    int count = 1;
+    int final_count = 1;
 
     if(argc == 3){
-//         int remainder = 0;
-//         if(sscanf(argv[2], "%d.%d", &count, &remainder) <= 0 && remainder == 0){
-//             printf("%d", remainder);
-//             return return_error("Argument error\nArgument [final_cluster_count] isn\'t in a proper format.
-// It must be an integer higher than 0", EXIT_FAILURE);
-//         }
-    	if(!convert_int(argv[2], &count)){
+    	if(!convert_int(argv[2], &final_count, true)){
             return return_error("Argument error\nArgument [final_cluster_count] isn\'t in a proper format. \
 It must be an integer higher than 0", EXIT_FAILURE);
         }
@@ -486,12 +497,20 @@ It must be an integer higher than 0", EXIT_FAILURE);
     if(len == 0){
         return EXIT_FAILURE;
     }
+    else if(len < final_count){
+        free_clusters(&clusters, len);
+        return return_error("Final count of the clusters \
+can\'t be higher than count of clusters got from the input file", EXIT_FAILURE);
+    }
 
     //nearest neighbors algorithm implemented in the cycle below
-    while(len > count){
+    while(len > final_count){
         int c1, c2;
         find_neighbours(clusters, len, &c1, &c2);
-        merge_clusters(&clusters[c1], &clusters[c2]);
+        if(merge_clusters(&clusters[c1], &clusters[c2]) == -1){
+            free_clusters(&clusters, len); 
+            return EXIT_FAILURE;
+        } 
         len = remove_cluster(clusters, len, c2);
     }
     print_clusters(clusters, len);
