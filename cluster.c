@@ -141,7 +141,6 @@ struct cluster_t *resize_cluster(struct cluster_t *c, int new_cap)
  */
 int append_cluster(struct cluster_t *c, struct obj_t obj)
 {
-    // TODO
     if(c->size + 1 > c->capacity){
         if(resize_cluster(c, c->size+1) == NULL){
             return return_error("Allocation error", -1);
@@ -166,7 +165,6 @@ int merge_clusters(struct cluster_t *c1, struct cluster_t *c2)
     assert(c1 != NULL);
     assert(c2 != NULL);
 
-    // TODO
     //Checking here if merging can fit in allocated memory for objects in c1
     if(c1->size + c2->size > c1->capacity){
         if(resize_cluster(c1, c1->size + c2->size) == NULL){
@@ -194,7 +192,6 @@ int remove_cluster(struct cluster_t *carr, int narr, int idx)
     assert(idx < narr);
     assert(narr > 0);
 
-    // TODO
     clear_cluster(&carr[idx]);
 
     for(int i = idx; i < narr - 1; i++){
@@ -211,7 +208,6 @@ float obj_distance(struct obj_t *o1, struct obj_t *o2)
     assert(o1 != NULL);
     assert(o2 != NULL);
 
-    // TODO
     return sqrt(pow(o1->x - o2->x, 2) + pow(o1->y - o2->y, 2));
 }
 
@@ -225,7 +221,6 @@ float cluster_distance(struct cluster_t *c1, struct cluster_t *c2)
     assert(c2 != NULL);
     assert(c2->size > 0);
 
-    // TODO
     float min_distance = obj_distance(&c1->obj[0], &c2->obj[0]);
     for(int i = 0; i < c1->size; i++){
         for(int j = 0; j < c2->size; j++){
@@ -247,7 +242,6 @@ float cluster_distance(struct cluster_t *c1, struct cluster_t *c2)
 void find_neighbours(struct cluster_t *carr, int narr, int *c1, int *c2)
 {
     assert(narr > 0);
-    // TODO
 
     float min_distance = cluster_distance(&carr[0], &carr[1]);
     for(int i = 0; i < narr; i++){
@@ -297,7 +291,7 @@ void print_cluster(struct cluster_t *c)
 }
 
 void free_clusters(struct cluster_t** arr, int len);
-bool convert_int(char* str, int* result, bool must_be_higher_zero);
+bool convert_int(char* str, int* result, bool must_be_positive);
 /*
  Ze souboru 'filename' nacte objekty. Pro kazdy objekt vytvori shluk a ulozi
  jej do pole shluku. Alokuje prostor pro pole vsech shluku a ukazatel na prvni
@@ -312,7 +306,6 @@ int load_clusters(char *filename, struct cluster_t **arr)
 
     assert(arr != NULL);
 
-    // TODO
     FILE* file;
     file = fopen(filename, "r");
     if(file == NULL){
@@ -320,13 +313,8 @@ int load_clusters(char *filename, struct cluster_t **arr)
         return 0;
     }
     char buffer[STR_COUNT_ARG_LEN];
-    if(buffer == NULL){
-        fclose(file);
-        return return_error("Allocation error", 0);
-    }
 
     fscanf(file, "%18s", buffer);
-
 
     //Checking here if a file in a proper format(must contain count= in the beginning)
     if(strcmp(strtok(buffer, "="), "count") != 0){
@@ -399,16 +387,21 @@ of some cluster must be in range between 0 and 1000 included", 0);
 
     fclose(file);
     //Checking if all objects have unique id
+    
+    return CheckIfUnique(*arr) ? i : 0;
+}
+
+bool CheckIfUnique(struct cluster *arr){
     for(int j = 0; j < i; j++){
         for(int k = j + 1; k < i; k++){
             if((*arr)[j].obj[0].id == (*arr)[k].obj[0].id){
                 free_clusters(arr, i);
                 fprintf(stderr, "Argument file error\nID in a cluster isn\'t unique");
-                return 0;
+                return false;
             }
         }
     }
-    return i;
+    return true;
 }
 
 /*
@@ -441,30 +434,35 @@ int return_error(char* msg, int return_value){
 }
 
 //Function converts string to int and in the same time checks if it's int
-bool convert_int(char* str, int* result, bool must_be_higher_zero){
+bool convert_int(char* str, int* result, bool must_be_positive){
     int i = 0;
     unsigned max_digits_with_sign = INT_MAX_DIGITS_COUNT;
+
     //Number is negative, then maximal count of symbols in int number can be on one higher
     if(str[i] == '-'){
         i = 1;
         max_digits_with_sign++;
     }
+
     //Count of symbols in given string is higher than int number can store digits
     if(strlen(str) > max_digits_with_sign){
         return false;
     }
+    
     //Checking if there're only digits in given string 
     for(; str[i] != '\0'; i++){
         if(str[i] < '0' || str[i] > '9'){
             return false;
         }
     }
+
     //Checking if number in int range
     long int temp = atol(str);
     if(temp > INT_MAX || temp < INT_MIN){
         return false;
     }
-    if(must_be_higher_zero && temp <= 0){
+    //Comparing ìf needed whether the number positive or negative with zero included
+    if(must_be_positive && temp <= 0){
         return false;
     }
 
