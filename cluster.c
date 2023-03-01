@@ -1,8 +1,6 @@
 /**Pavlo Butenko
  * xbuten00
- * Kostra programu pro 2. projekt IZP 2022/23
- * 
- * Jednoducha shlukova analyza: 2D nejblizsi soused.
+ * Simple cluster analysis: 2D nearest neighbour.
  * Single linkage
  */
 #include <stdio.h>
@@ -12,13 +10,12 @@
 #include <limits.h> // INT_MAX
 #include <string.h>
 #include <stdbool.h>
-//#include <errno.h>
 
 /*****************************************************************
- * Ladici makra. Vypnout jejich efekt lze definici makra
- * NDEBUG, napr.:
- *   a) pri prekladu argumentem prekladaci -DNDEBUG
- *   b) v souboru (na radek pred #include <assert.h>
+ * Debugging macros. You can turn off their effect by defining the macro
+ * NDEBUG, e.g.:
+ * a) while compiling with the argument -DNDEBUG
+ * b) in the file (on the line before #include <assert.h>
  *      #define NDEBUG
  */
 #ifdef NDEBUG
@@ -28,17 +25,17 @@
 #define dfloat(f)
 #else
 
-// vypise ladici retezec
+// prints debugging string
 #define debug(s) printf("- %s\n", s)
 
-// vypise formatovany ladici vystup - pouziti podobne jako printf
+// prints formatted debugging output - used like printf
 #define dfmt(s, ...) printf(" - "__FILE__":%u: "s"\n",__LINE__,__VA_ARGS__)
 
-// vypise ladici informaci o promenne - pouziti dint(identifikator_promenne)
+// prints variable debugging information - usage dint(variable)
 #define dint(i) printf(" - " __FILE__ ":%u: " #i " = %d\n", __LINE__, i)
 
-// vypise ladici informaci o promenne typu float - pouziti
-// dfloat(identifikator_promenne)
+// prints debugging information about the variable with the type of float
+// dfloat(variable)
 #define dfloat(f) printf(" - " __FILE__ ":%u: " #f " = %g\n", __LINE__, f)
 
 #endif
@@ -46,16 +43,14 @@
 #define INT_MAX_DIGITS_COUNT 10
 
 /*****************************************************************
- * Deklarace potrebnych datovych typu:
+ * Declaration of necessary data types:
  *
- * TYTO DEKLARACE NEMENTE
- *
- *   struct obj_t - struktura objektu: identifikator a souradnice
- *   struct cluster_t - shluk objektu:
- *      pocet objektu ve shluku,
- *      kapacita shluku (pocet objektu, pro ktere je rezervovano
- *          misto v poli),
- *      ukazatel na pole shluku.
+ * struct obj_t - object structure: identifier and coordinates
+ * struct cluster_t - object cluster:
+ * number of objects in the cluster,
+ * cluster capacity (number of objects reserved for the cluster
+ * in the array),
+ * pointer to the cluster array.
  */
 
 struct obj_t {
@@ -71,19 +66,14 @@ struct cluster_t {
 };
 
 /*****************************************************************
- * Deklarace potrebnych funkci.
- *
- * PROTOTYPY FUNKCI NEMENTE
- *
- * IMPLEMENTUJTE POUZE FUNKCE NA MISTECH OZNACENYCH 'TODO'
- *
+ * Declaration of necessary functions.
  */
 
 int return_error(char* msg, int return_value);
 
 /*
- Inicializace shluku 'c'. Alokuje pamet pro cap objektu (kapacitu).
- Ukazatel NULL u pole objektu znamena kapacitu 0.
+ Initialization of cluster 'c'. Allocates memory for the object cap (capacity).
+ The NULL pointer to the object array indicates a capacity of 0.
 */
 int init_cluster(struct cluster_t *c, int cap)
 {
@@ -99,7 +89,7 @@ int init_cluster(struct cluster_t *c, int cap)
 }
 
 /*
- Odstraneni vsech objektu shluku a inicializace na prazdny shluk.
+ Removes all cluster objects and initializes to an empty cluster.
  */
 void clear_cluster(struct cluster_t *c)
 {
@@ -108,15 +98,12 @@ void clear_cluster(struct cluster_t *c)
     c->capacity = 0;
 }
 
-/// Chunk of cluster objects. Value recommended for reallocation.
-const int CLUSTER_CHUNK = 10;
 
 /*
- Zmena kapacity shluku 'c' na kapacitu 'new_cap'.
+ Changes the capacity of cluster 'c' to the 'new_cap'.
  */
 struct cluster_t *resize_cluster(struct cluster_t *c, int new_cap)
 {
-    // TUTO FUNKCI NEMENTE
     assert(c);
     assert(c->capacity >= 0);
     assert(new_cap >= 0);
@@ -136,8 +123,8 @@ struct cluster_t *resize_cluster(struct cluster_t *c, int new_cap)
 }
 
 /*
- Prida objekt 'obj' na konec shluku 'c'. Rozsiri shluk, pokud se do nej objekt
- nevejde.
+ Adds object 'obj' to the end of the 'c' cluster.
+ Expands the cluster if the object won't fit in it.
  */
 int append_cluster(struct cluster_t *c, struct obj_t obj)
 {
@@ -151,21 +138,21 @@ int append_cluster(struct cluster_t *c, struct obj_t obj)
 }
 
 /*
- Seradi objekty ve shluku 'c' vzestupne podle jejich identifikacniho cisla.
+ Sorts the objects in cluster 'c' in ascending order by their id.
  */
 void sort_cluster(struct cluster_t *c);
 
 /*
- Do shluku 'c1' prida objekty 'c2'. Shluk 'c1' bude v pripade nutnosti rozsiren.
- Objekty ve shluku 'c1' budou serazeny vzestupne podle identifikacniho cisla.
- Shluk 'c2' bude nezmenen.
+ Adds the 'c2' objects to the 'c1' cluster. The 'c1' cluster will be expanded if necessary.
+ The objects in the 'c1' cluster will be sorted in ascending order by the id.
+ The cluster 'c2' won't be changed.
  */
 int merge_clusters(struct cluster_t *c1, struct cluster_t *c2)
 {
     assert(c1 != NULL);
     assert(c2 != NULL);
 
-    //Checking here if merging can fit in allocated memory for objects in c1
+    //Checking here if the merging can fit in allocated memory for objects in c1
     if(c1->size + c2->size > c1->capacity){
         if(resize_cluster(c1, c1->size + c2->size) == NULL){
             return return_error("Allocation error", -1);
@@ -180,12 +167,12 @@ int merge_clusters(struct cluster_t *c1, struct cluster_t *c2)
 }
 
 /**********************************************************************/
-/* Prace s polem shluku */
+/* Working with a cluster array */
 
 /*
- Odstrani shluk z pole shluku 'carr'. Pole shluku obsahuje 'narr' polozek
- (shluku). Shluk pro odstraneni se nachazi na indexu 'idx'. Funkce vraci novy
- pocet shluku v poli.
+ Removes a cluster from the 'carr' cluster array. The cluster array contains 'narr' elements
+ (cluster). The cluster to remove is located at index 'idx'. The function returns a new
+ number of clusters in the array.
 */
 int remove_cluster(struct cluster_t *carr, int narr, int idx)
 {
@@ -201,7 +188,7 @@ int remove_cluster(struct cluster_t *carr, int narr, int idx)
 }
 
 /*
- Pocita Euklidovskou vzdalenost mezi dvema objekty.
+Calculates the Euclidean distance between two objects.
  */
 float obj_distance(struct obj_t *o1, struct obj_t *o2)
 {
@@ -212,7 +199,7 @@ float obj_distance(struct obj_t *o1, struct obj_t *o2)
 }
 
 /*
- Pocita vzdalenost dvou shluku.
+ It calculates the distance between two clusters.
 */
 float cluster_distance(struct cluster_t *c1, struct cluster_t *c2)
 {
@@ -234,10 +221,10 @@ float cluster_distance(struct cluster_t *c1, struct cluster_t *c2)
 }
 
 /*
- Funkce najde dva nejblizsi shluky. V poli shluku 'carr' o velikosti 'narr'
- hleda dva nejblizsi shluky. Nalezene shluky identifikuje jejich indexy v poli
- 'carr'. Funkce nalezene shluky (indexy do pole 'carr') uklada do pameti na
- adresu 'c1' resp. 'c2'.
+ Finds the two closest clusters. In a cluster array 'carr' of size 'narr'
+ searches for the two nearest clusters. It identifies the found clusters by their indixes in the array
+ 'carr'. The function stores the found clusters (indices in the 'carr' array) in memory in
+ address 'c1' and 'c2' respectively.
 */
 void find_neighbours(struct cluster_t *carr, int narr, int *c1, int *c2)
 {
@@ -256,10 +243,9 @@ void find_neighbours(struct cluster_t *carr, int narr, int *c1, int *c2)
     }
 }
 
-// pomocna funkce pro razeni shluku
+// helper function for cluster sorting
 static int obj_sort_compar(const void *a, const void *b)
 {
-    // TUTO FUNKCI NEMENTE
     const struct obj_t *o1 = (const struct obj_t *)a;
     const struct obj_t *o2 = (const struct obj_t *)b;
     if (o1->id < o2->id) return -1;
@@ -268,20 +254,19 @@ static int obj_sort_compar(const void *a, const void *b)
 }
 
 /*
- Razeni objektu ve shluku vzestupne podle jejich identifikatoru.
+ Sorts objects in the cluster in ascending order
+  according to their identifiers.
 */
 void sort_cluster(struct cluster_t *c)
 {
-    // TUTO FUNKCI NEMENTE
     qsort(c->obj, c->size, sizeof(struct obj_t), &obj_sort_compar);
 }
 
 /*
- Tisk shluku 'c' na stdout.
+ Prints cluster 'c' to stdout.
 */
 void print_cluster(struct cluster_t *c)
 {
-    // TUTO FUNKCI NEMENTE
     for (int i = 0; i < c->size; i++)
     {
         if (i) putchar(' ');
@@ -290,14 +275,22 @@ void print_cluster(struct cluster_t *c)
     putchar('\n');
 }
 
-void free_clusters(struct cluster_t** arr, int len);
-bool convert_int(char* str, int* result, bool must_be_positive);
+void free_clusters(struct cluster_t* arr, int len);
+bool convert_int(char* str, int* result, bool must_be_higher_zero);
+bool check_if_unique(struct cluster_t* arr, int len);
+int return_error_with_file_closing(FILE* file, char* msg, int return_value);
+int return_error_with_deallocation_file_closing(FILE* file, struct cluster_t* arr,
+ int count, char* msg, int return_value);
+int return_error_with_deallocation(struct cluster_t* arr,
+ int count, char* msg, int return_value);
 /*
- Ze souboru 'filename' nacte objekty. Pro kazdy objekt vytvori shluk a ulozi
- jej do pole shluku. Alokuje prostor pro pole vsech shluku a ukazatel na prvni
- polozku pole (ukalazatel na prvni shluk v alokovanem poli) ulozi do pameti,
- kam se odkazuje parametr 'arr'. Funkce vraci pocet nactenych objektu (shluku).
- V pripade nejake chyby uklada do pameti, kam se odkazuje 'arr', hodnotu NULL.
+ Retrieves objects from the file 'filename'. 
+ For each object it creates a cluster and saves it into the cluster array.
+ Allocates space for the array of all clusters and a pointer to the first
+ position of the array (the pointer to the first cluster in the allocated array)
+ is stored in memory, where the parameter 'arr' is referenced.
+ The function returns the number of loaded objects (clusters).
+ In case of an error, it stores a NULL value in the memory referenced by 'arr'.
 */
 int load_clusters(char *filename, struct cluster_t **arr)
 {
@@ -309,32 +302,31 @@ int load_clusters(char *filename, struct cluster_t **arr)
     FILE* file;
     file = fopen(filename, "r");
     if(file == NULL){
-        fprintf(stderr, "Argument error\n%s doesn\'t exist\n", filename);
-        return 0;
+        return return_error("Argument error\n%s doesn\'t exist\n", 0);
     }
     char buffer[STR_COUNT_ARG_LEN];
+    if(buffer == NULL){
+        return return_error_with_file_closing(file, "Allocation error", 0);
+    }
 
     fscanf(file, "%18s", buffer);
 
     //Checking here if a file in a proper format(must contain count= in the beginning)
     if(strcmp(strtok(buffer, "="), "count") != 0){
-        fclose(file);
-        return return_error("Argument error\nArgument file isn\'t in a proper format", 0);
+        return return_error_with_file_closing(file, "Argument error\nArgument file isn\'t in a proper format", 0);
     }
-
-
     strcpy(buffer, strtok(NULL, "="));
+
     int count;
     //Checking here if count argument in file is an integer higher than 0
     if(!convert_int(buffer, &count, true)){
-        fclose(file);
-        return return_error("Argument file error\nThe value of [count] must be integer higher than 0", 0);
+        return return_error_with_file_closing(file, 
+        "Argument file error\nThe value of [count] must be integer higher than 0", 0);
     }
 
     *arr = malloc(count * sizeof(struct cluster_t));
     if(arr == NULL){
-        fclose(file);
-        return return_error("Allocation error", 0);
+        return return_error_with_file_closing(file, "Allocation error", 0);
     }
 
     int i = 0;
@@ -344,16 +336,15 @@ int load_clusters(char *filename, struct cluster_t **arr)
         //Parsing values in the line and checking if they are int
         for(int j = 0; j < 3; j++){
             if(fscanf(file, "%18s", buffer) == EOF){
-                fclose(file);
-                free_clusters(arr, i);
-                return return_error("Argument file error\nCount of objects given \
+            return return_error_with_deallocation_file_closing(file, *arr, i, 
+            "Argument file error\nCount of objects given \
 in the beginning of the file is higher than initial count of objects in the file", 0);
+
             }
 
             if(!convert_int(buffer, &property_array[j], false)){
-                fclose(file);
-                free_clusters(arr, i);
-                return return_error("Argument file error\nProperies of objects isn\'t proper, they must be int type", 0);
+                return return_error_with_deallocation_file_closing(file, *arr, i, 
+                "Argument file error\nProperies of objects isn\'t proper, they must be int type", 0);
             }
         }
 
@@ -361,47 +352,31 @@ in the beginning of the file is higher than initial count of objects in the file
         //Checking if there properties of multiple objects in a line 
         int last_symbol = getc(file);
         if(!(last_symbol == '\n' || last_symbol == '\r' || last_symbol == EOF)){
-            fclose(file);
-            free_clusters(arr, i);
-            return return_error("Argument file error\nProperies of more than one object can\'t be on a line", 0);
+            return return_error_with_deallocation_file_closing(file, *arr, i, 
+            "Argument file error\nProperies of more than one object can\'t be on a line", 0);
         }
 
         if(obj.x < 0 || obj.x >1000 || obj.y < 0 || obj.y > 1000){
-            fclose(file);
-            free_clusters(arr, i);
-            return return_error("Argument file error\nThe value of coordinates \
+            return return_error_with_deallocation_file_closing(file, *arr, i, 
+            "Argument file error\nThe value of coordinates \
 of some cluster must be in range between 0 and 1000 included", 0);
+
         }
         if(init_cluster(&(*arr)[i], 1) == -1){
-            fclose(file);
-            free_clusters(arr, i); 
-            return 0;
+            return return_error_with_deallocation_file_closing(file, *arr, i, "", 0);
         }
         if(append_cluster(&(*arr)[i], obj) == -1){
-            fclose(file);
-            free_clusters(arr, i); 
-            return 0;
+            return return_error_with_deallocation_file_closing(file, *arr, i, "", 0);
         }
         (*arr)[i].size = 1;
     }
 
     fclose(file);
     //Checking if all objects have unique id
-    
-    return CheckIfUnique(*arr) ? i : 0;
-}
-
-bool CheckIfUnique(struct cluster *arr){
-    for(int j = 0; j < i; j++){
-        for(int k = j + 1; k < i; k++){
-            if((*arr)[j].obj[0].id == (*arr)[k].obj[0].id){
-                free_clusters(arr, i);
-                fprintf(stderr, "Argument file error\nID in a cluster isn\'t unique");
-                return false;
-            }
-        }
+    if(!check_if_unique(*arr, i)){
+        return 0;
     }
-    return true;
+    return i;
 }
 
 /*
@@ -420,11 +395,46 @@ void print_clusters(struct cluster_t *carr, int narr)
 
 
 //Function to deallocate array of clusters
-void free_clusters(struct cluster_t** arr, int len){
+void free_clusters(struct cluster_t* arr, int len){
     for(int i = 0; i < len; i++){
-        clear_cluster(&(*arr)[i]);
+        clear_cluster(&arr[i]);
     }
-    free(*arr);
+    free(arr);
+}
+
+bool check_if_unique(struct cluster_t* arr, int len){
+    for(int j = 0; j < len; j++){
+        for(int k = j + 1; k < len; k++){
+            if(arr[j].obj[0].id == arr[k].obj[0].id){
+                return return_error_with_deallocation(arr, len,
+                 "Argument file error\nID in a cluster isn\'t unique", 0);
+            }
+        }
+    }
+    return true;
+}
+
+/*
+Function to return error with message to stderr and 
+deallocating the object with closing the file
+*/
+int return_error_with_deallocation_file_closing(FILE* file, struct cluster_t* arr,
+ int count, char* msg, int return_value){
+    free_clusters(arr, count);
+    return return_error_with_file_closing(file, msg, return_value);
+}
+
+//Function to return error with message to stderr and deallocating the object
+int return_error_with_deallocation(struct cluster_t* arr,
+ int count, char* msg, int return_value){
+    free_clusters(arr, count);
+    return return_error(msg, return_value);
+}
+
+//Function to return error with message to stderr and closing the file
+int return_error_with_file_closing(FILE* file, char* msg, int return_value){
+    fclose(file);
+    return return_error(msg, return_value);
 }
 
 //Function to return error with message to stderr
@@ -433,36 +443,31 @@ int return_error(char* msg, int return_value){
     return return_value;
 }
 
-//Function converts string to int and in the same time checks if it's int
-bool convert_int(char* str, int* result, bool must_be_positive){
+//Function converts string to int and in the same time checks if it's an int
+bool convert_int(char* str, int* result, bool must_be_higher_zero){
     int i = 0;
     unsigned max_digits_with_sign = INT_MAX_DIGITS_COUNT;
-
     //Number is negative, then maximal count of symbols in int number can be on one higher
     if(str[i] == '-'){
         i = 1;
         max_digits_with_sign++;
     }
-
     //Count of symbols in given string is higher than int number can store digits
     if(strlen(str) > max_digits_with_sign){
         return false;
     }
-    
     //Checking if there're only digits in given string 
     for(; str[i] != '\0'; i++){
         if(str[i] < '0' || str[i] > '9'){
             return false;
         }
     }
-
     //Checking if number in int range
     long int temp = atol(str);
     if(temp > INT_MAX || temp < INT_MIN){
         return false;
     }
-    //Comparing ìf needed whether the number positive or negative with zero included
-    if(must_be_positive && temp <= 0){
+    if(must_be_higher_zero && temp <= 0){
         return false;
     }
 
@@ -496,8 +501,7 @@ It must be an integer higher than 0", EXIT_FAILURE);
         return EXIT_FAILURE;
     }
     else if(len < final_count){
-        free_clusters(&clusters, len);
-        return return_error("Final count of the clusters \
+        return return_error_with_deallocation(clusters, len,"Final count of the clusters \
 can\'t be higher than count of clusters got from the input file", EXIT_FAILURE);
     }
 
@@ -506,14 +510,13 @@ can\'t be higher than count of clusters got from the input file", EXIT_FAILURE);
         int c1, c2;
         find_neighbours(clusters, len, &c1, &c2);
         if(merge_clusters(&clusters[c1], &clusters[c2]) == -1){
-            free_clusters(&clusters, len); 
-            return EXIT_FAILURE;
+            return return_error_with_deallocation(clusters, len, "", EXIT_FAILURE);
         } 
         len = remove_cluster(clusters, len, c2);
     }
     print_clusters(clusters, len);
 
-    free_clusters(&clusters, len);
+    free_clusters(clusters, len);
 
     return 0;
 }
